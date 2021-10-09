@@ -3,9 +3,20 @@ use std::env;
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let config = parse_query(&args);
-    let addr_splices = parse_address_splices(&config.ipaddr)
-        .expect("Your entered value is incorrect");
+    let config = match parse_query(&args) {
+        Ok(conf) => conf,
+        Err(_) => {
+            panic!(
+                "\n
+Please, try using `ipclass [-b/--binary] 127.0.0.1`\n 
+Where you can change 127.0.0.1 to any ip\n\n
+Using flag -b or --binary enter binary ip to get its class
+                "
+            );
+        }
+    };
+    let addr_splices =
+        parse_address_splices(&config.ipaddr).expect("Your entered value is incorrect");
     let result = get_address_class(&addr_splices)
         .expect("Class is not exists for this ip (senior binary octet)");
 
@@ -16,10 +27,16 @@ struct Config {
     ipaddr: String,
 }
 
-fn parse_query(args: &[String]) -> Config {
-    let ipaddr = args[1].clone();
-
-    Config { ipaddr  }
+fn parse_query(args: &[String]) -> Result<Config, &'static str> {
+    match args.len() {
+        2 => Ok(Config {
+            ipaddr: args[1].clone(),
+        }),
+        3 => Ok(Config {
+            ipaddr: args[2].clone(),
+        }),
+        _ => Err(""),
+    }
 }
 
 fn parse_address_splices(ipaddr: &String) -> Result<Vec<i32>, &'static str> {
@@ -29,7 +46,7 @@ fn parse_address_splices(ipaddr: &String) -> Result<Vec<i32>, &'static str> {
     for octet in addr_splices {
         addr_i32_splices.push(octet.parse().unwrap());
     }
-    
+
     if validate_address(&addr_i32_splices) {
         Ok(addr_i32_splices)
     } else {
@@ -38,7 +55,10 @@ fn parse_address_splices(ipaddr: &String) -> Result<Vec<i32>, &'static str> {
 }
 
 fn get_address_class(addr_splices: &Vec<i32>) -> Result<&'static str, String> {
-    let mut senior_octet: Vec<char> = format!("{:b}", addr_splices[0]).to_string().chars().collect();
+    let mut senior_octet: Vec<char> = format!("{:b}", addr_splices[0])
+        .to_string()
+        .chars()
+        .collect();
 
     while senior_octet.len() < 8 {
         let mut zero_vec = vec!['0'];
@@ -65,7 +85,10 @@ fn get_address_class(addr_splices: &Vec<i32>) -> Result<&'static str, String> {
 fn validate_address(ipaddr_splices: &Vec<i32>) -> bool {
     if ipaddr_splices.len() != 4 {
         false
-    } else if ipaddr_splices.iter().any(|&splice| splice < 0 || splice > 255) {
+    } else if ipaddr_splices
+        .iter()
+        .any(|&splice| splice < 0 || splice > 255)
+    {
         false
     } else {
         true
