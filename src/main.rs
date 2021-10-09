@@ -1,64 +1,51 @@
-use std::env;
+use structopt::StructOpt;
+use regex::Regex;
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
+fn main() -> Result<(), &'static str> {
+    let args = Config::from_args();
 
-    let config = match parse_query(&args) {
-        Ok(conf) => conf,
-        Err(_) => {
-            panic!(
-                "\n
-Please, try using `ipclass [-b/--binary] 127.0.0.1`\n 
-Where you can change 127.0.0.1 to any ip\n\n
-Using flag -b or --binary enter binary ip to get its class
-                "
-            );
-        }
-    };
-    let addr_splices =
-        parse_address_splices(&config.ipaddr).expect("Your entered value is incorrect");
-    let result = get_address_class(&addr_splices)
-        .expect("Class is not exists for this ip (senior binary octet)");
+    if validate_address(&args.ipaddr, args.is_binary) {
+        let result = get_address_class(&args.ipaddr, args.is_binary)
+            .expect("Class is not exists for this ip (senior binary octet)");
 
-    println!("{}", result);
+        println!("{}", result);
+        Ok(())
+    } else {
+        Err("Invalid input")
+    }
 }
 
+#[derive(StructOpt)]
 struct Config {
+    #[structopt(short = "b", long = "binary")]
+    is_binary: bool,
     ipaddr: String,
 }
 
-fn parse_query(args: &[String]) -> Result<Config, &'static str> {
-    match args.len() {
-        2 => Ok(Config {
-            ipaddr: args[1].clone(),
-        }),
-        3 => Ok(Config {
-            ipaddr: args[2].clone(),
-        }),
-        _ => Err(""),
-    }
-}
-
-fn parse_address_splices(ipaddr: &String) -> Result<Vec<i32>, &'static str> {
+fn parse_address_splices(ipaddr: &String) -> (Vec<&str>, Vec<i32>) {
     let addr_splices: Vec<&str> = ipaddr.split(".").collect();
 
     let mut addr_i32_splices: Vec<i32> = Vec::new();
-    for octet in addr_splices {
+    for octet in addr_splices.iter() {
         addr_i32_splices.push(octet.parse().unwrap());
     }
 
-    if validate_address(&addr_i32_splices) {
-        Ok(addr_i32_splices)
-    } else {
-        Err("Error while trying parse address splices")
-    }
+    (addr_splices, addr_i32_splices)
 }
 
-fn get_address_class(addr_splices: &Vec<i32>) -> Result<&'static str, String> {
-    let mut senior_octet: Vec<char> = format!("{:b}", addr_splices[0])
-        .to_string()
-        .chars()
-        .collect();
+fn get_address_class(ipaddr: &String, is_binary: bool) -> Result<&'static str, String> {
+    let (_, addr_splices) = parse_address_splices(&ipaddr);
+
+    let mut senior_octet: Vec<char>;
+
+    if !is_binary {
+        senior_octet = format!("{:b}", addr_splices[0])
+            .to_string()
+            .chars()
+            .collect();
+    } else {
+        senior_octet = addr_splices[0].to_string().chars().collect();
+    }
 
     while senior_octet.len() < 8 {
         let mut zero_vec = vec!['0'];
@@ -82,15 +69,23 @@ fn get_address_class(addr_splices: &Vec<i32>) -> Result<&'static str, String> {
     }
 }
 
-fn validate_address(ipaddr_splices: &Vec<i32>) -> bool {
-    if ipaddr_splices.len() != 4 {
-        false
-    } else if ipaddr_splices
-        .iter()
-        .any(|&splice| splice < 0 || splice > 255)
-    {
-        false
+fn validate_address(ipaddr: &String, is_binary: bool) -> bool {
+    if !is_binary {
+        let (_, ipaddr_splices) = parse_address_splices(&ipaddr);
+
+        if ipaddr_splices.len() != 4 {
+            false
+        } else if ipaddr_splices
+            .iter()
+            .any(|&splice| splice < 0 || splice > 255)
+        {
+            false
+        } else {
+            true
+        }
     } else {
-        true
+        let binary_re = Regex::new(r"^([0-1]{8}\.){3}[0-1]{8}$").unwrap();
+
+        binary_re.is_match(&ipaddr[..])
     }
 }
