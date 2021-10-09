@@ -4,9 +4,11 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let config = parse_query(&args);
-
-    let result = get_address_class(&parse_address_splices(&config.ipaddr))
+    let addr_splices = parse_address_splices(&config.ipaddr)
         .expect("Your entered value is incorrect");
+    let result = get_address_class(&addr_splices)
+        .expect("Class is not exists for this ip (senior binary octet)");
+
     println!("{}", result);
 }
 
@@ -20,7 +22,7 @@ fn parse_query(args: &[String]) -> Config {
     Config { ipaddr  }
 }
 
-fn parse_address_splices(ipaddr: &String) -> Vec<i32> {
+fn parse_address_splices(ipaddr: &String) -> Result<Vec<i32>, &'static str> {
     let addr_splices: Vec<&str> = ipaddr.split(".").collect();
 
     let mut addr_i32_splices: Vec<i32> = Vec::new();
@@ -28,10 +30,14 @@ fn parse_address_splices(ipaddr: &String) -> Vec<i32> {
         addr_i32_splices.push(octet.parse().unwrap());
     }
     
-    addr_i32_splices
+    if validate_address(&addr_i32_splices) {
+        Ok(addr_i32_splices)
+    } else {
+        Err("Error while trying parse address splices")
+    }
 }
 
-fn get_address_class(addr_splices: &Vec<i32>) -> Result<&'static str, &'static str> {
+fn get_address_class(addr_splices: &Vec<i32>) -> Result<&'static str, String> {
     let mut senior_octet: Vec<char> = format!("{:b}", addr_splices[0]).to_string().chars().collect();
 
     while senior_octet.len() < 8 {
@@ -48,9 +54,20 @@ fn get_address_class(addr_splices: &Vec<i32>) -> Result<&'static str, &'static s
         Ok("C")
     } else if senior_octet[3] == '0' {
         Ok("D")
-    } else if senior_octet[4] == '0' {
+    } else if addr_splices[0] != 255 {
         Ok("E")
     } else {
-        Err("invalid address")
+        let senior_octet: String = senior_octet.into_iter().collect();
+        Err(senior_octet)
+    }
+}
+
+fn validate_address(ipaddr_splices: &Vec<i32>) -> bool {
+    if ipaddr_splices.len() != 4 {
+        false
+    } else if ipaddr_splices.iter().any(|&splice| splice < 0 || splice > 255) {
+        false
+    } else {
+        true
     }
 }
