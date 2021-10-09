@@ -6,7 +6,7 @@ fn main() {
     let config = parse_query(&args);
 
     let result = get_address_class(&parse_address_splices(&config.ipaddr))
-        .expect("Вы неправильно ввели адрес");
+        .expect("Your entered value is incorrect");
     println!("{}", result);
 }
 
